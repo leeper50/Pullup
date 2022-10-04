@@ -78,58 +78,61 @@ func ParseArgs(path string) string {
 	return path
 }
 
-func PullUp(files []fs.DirEntry, dir string) {
-	var (
-		bad_exts  = [4]string{".exe", ".jpg", ".nfo", ".txt"}
-		err       error
-		filepath  string
-		sub_files []fs.DirEntry
-	)
-	// Only for sub-directories
-	for _, file := range files {
-		if file.IsDir() {
-			filepath = dir + file.Name()
-			osappend(&filepath)
-			sub_files, err = os.ReadDir(filepath)
-			if err != nil {
-				log.Fatal(err)
-			}
-			// Individual Files in sub-directories
-			for _, sub_file := range sub_files {
-				source_file := filepath + sub_file.Name()
-				file_dest := dir + sub_file.Name()
-				if !sub_file.IsDir() && !CheckExtensions(sub_file, bad_exts[:]) {
-					err = MoveFile(source_file, file_dest)
-					if err != nil {
-						log.Fatal(err)
-					}
-				} else if sub_file.IsDir() {
-					DeleteDir(source_file)
-				} else {
-					os.Remove(source_file)
-					println("DELETED FILE: ", source_file)
-					continue
-				}
-			}
-			DeleteDir(filepath)
-		}
-	}
-}
-
-func main() {
-	var (
-		err        error
-		root_dir   string
-		root_files []fs.DirEntry
-	)
-
-	root_dir = ParseArgs(root_dir)
-
+func PullUp(dir string) {
 	// All files in original directory
-	root_files, err = os.ReadDir(root_dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	PullUp(root_files, root_dir)
+	bad_exts := [4]string{".exe", ".jpg", ".nfo", ".txt"}
+	// Only for sub-directories
+	for _, file := range files {
+		if file.IsDir() {
+			println("dir: ", file.Name())
+			sub_dir := dir + file.Name()
+			osappend(&sub_dir)
+			PullUp(sub_dir)
+			// DeleteDir(sub_dir)
+		} else {
+			// Individual Files in sub-directories
+			for _, temp := range files {
+				println(temp.Name())
+			}
+			for _, sub_file := range files {
+				source_file := dir + sub_file.Name()
+				dest_file := root_dir + sub_file.Name()
+				if sub_file.IsDir() {
+					println("Sub file: ", sub_file.Name(), " is a dir")
+					osappend(&source_file)
+					PullUp(source_file)
+					DeleteDir(source_file)
+					continue
+				} else if CheckExtensions(sub_file, bad_exts[:]) {
+					os.Remove(source_file)
+					println("DELETED FILE: ", source_file)
+					continue
+				} else {
+					if source_file != dest_file {
+						err := MoveFile(source_file, dest_file)
+						if err != nil {
+							log.Fatal(err)
+						}
+					} else {
+						print("Source and dest are the same")
+					}
+					continue
+				}
+			}
+		}
+	}
+}
+
+var root_dir string
+
+func main() {
+
+	// root_dir = ParseArgs(root_dir)
+	root_dir = `C:\Users\walter\Downloads\backup - Copy\`
+	PullUp(root_dir)
 }

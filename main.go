@@ -3,25 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
-func CheckExtensions(file fs.DirEntry, extensions []string) bool {
-	if file.IsDir() {
-		log.Fatal("can not check extension of a folder")
-	}
-	for _, ext := range extensions {
-		if strings.Contains(file.Name(), ext) {
-			return true
-		}
-	}
-	return false
-}
-
+// Adds correct slash for path depending on OS
 func osappend(dir *string) {
 	os := runtime.GOOS
 	switch os {
@@ -29,28 +20,13 @@ func osappend(dir *string) {
 		if !strings.HasSuffix(*dir, `\`) {
 			*dir += `\`
 		}
+	case "macos":
+		fallthrough
 	case "linux":
 		if !strings.HasSuffix(*dir, "/") {
 			*dir += "/"
 		}
 	}
-}
-
-func DeleteDir(dir string) {
-	err := os.RemoveAll(dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	println("DELETED DIR: ", dir)
-}
-
-func MoveFile(source_path, dest_path string) error {
-	err := os.Rename(source_path, dest_path)
-	if err != nil {
-		return fmt.Errorf("failed moving file: %s", err)
-	}
-	println(source_path, " --> ", dest_path)
-	return nil
 }
 
 func ParseArgs(path string) string {
@@ -78,58 +54,43 @@ func ParseArgs(path string) string {
 	return path
 }
 
-func PullUp(files []fs.DirEntry, dir string) {
-	var (
-		bad_exts  = [4]string{".exe", ".jpg", ".nfo", ".txt"}
-		err       error
-		filepath  string
-		sub_files []fs.DirEntry
-	)
-	// Only for sub-directories
+func PullUp(dir string) {
+	// Directory path is checked before run
+	files, _ := os.ReadDir(dir)
+	extensions := []string{".exe", ".jpg", ".nfo", ".png", ".txt"}
 	for _, file := range files {
 		if file.IsDir() {
-			filepath = dir + file.Name()
-			osappend(&filepath)
-			sub_files, err = os.ReadDir(filepath)
-			if err != nil {
-				log.Fatal(err)
-			}
-			// Individual Files in sub-directories
-			for _, sub_file := range sub_files {
-				source_file := filepath + sub_file.Name()
-				file_dest := dir + sub_file.Name()
-				if !sub_file.IsDir() && !CheckExtensions(sub_file, bad_exts[:]) {
-					err = MoveFile(source_file, file_dest)
+			println("Directory: ", file.Name())
+			sub_dir := dir + file.Name()
+			osappend(&sub_dir)
+			PullUp(sub_dir)
+			os.RemoveAll(sub_dir)
+			println("Deleted directory: ", sub_dir)
+		} else {
+			source_file := dir + file.Name()
+			ext := filepath.Ext(file.Name())
+			if slices.Contains(extensions, ext) {
+				os.Remove(source_file)
+				println("Deleted file: ", source_file)
+			} else {
+				dest_file := root_dir + file.Name()
+				if source_file != dest_file {
+					err := os.Rename(source_file, dest_file)
 					if err != nil {
 						log.Fatal(err)
 					}
-				} else if sub_file.IsDir() {
-					DeleteDir(source_file)
+					println(source_file, " --> ", dest_file)
 				} else {
-					os.Remove(source_file)
-					println("DELETED FILE: ", source_file)
-					continue
+					println("File already at root", source_file)
 				}
 			}
-			DeleteDir(filepath)
 		}
 	}
 }
 
+var root_dir string
+
 func main() {
-	var (
-		err        error
-		root_dir   string
-		root_files []fs.DirEntry
-	)
-
 	root_dir = ParseArgs(root_dir)
-
-	// All files in original directory
-	root_files, err = os.ReadDir(root_dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	PullUp(root_files, root_dir)
+	PullUp(root_dir)
 }

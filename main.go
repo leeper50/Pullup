@@ -11,9 +11,6 @@ import (
 )
 
 func CheckExtensions(file fs.DirEntry, extensions []string) bool {
-	if file.IsDir() {
-		log.Fatal("can not check extension of a folder")
-	}
 	for _, ext := range extensions {
 		if strings.Contains(file.Name(), ext) {
 			return true
@@ -22,6 +19,7 @@ func CheckExtensions(file fs.DirEntry, extensions []string) bool {
 	return false
 }
 
+// Adds correct slash for path depending on OS
 func osappend(dir *string) {
 	os := runtime.GOOS
 	switch os {
@@ -29,28 +27,13 @@ func osappend(dir *string) {
 		if !strings.HasSuffix(*dir, `\`) {
 			*dir += `\`
 		}
+	case "macos":
+		fallthrough
 	case "linux":
 		if !strings.HasSuffix(*dir, "/") {
 			*dir += "/"
 		}
 	}
-}
-
-func DeleteDir(dir string) {
-	err := os.RemoveAll(dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	println("DELETED DIR: ", dir)
-}
-
-func MoveFile(source_path, dest_path string) error {
-	err := os.Rename(source_path, dest_path)
-	if err != nil {
-		return fmt.Errorf("failed moving file: %s", err)
-	}
-	println(source_path, " --> ", dest_path)
-	return nil
 }
 
 func ParseArgs(path string) string {
@@ -79,49 +62,32 @@ func ParseArgs(path string) string {
 }
 
 func PullUp(dir string) {
-	// All files in original directory
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	// Directory path is checked before run
+	files, _ := os.ReadDir(dir)
 	bad_exts := [4]string{".exe", ".jpg", ".nfo", ".txt"}
-	// Only for sub-directories
 	for _, file := range files {
 		if file.IsDir() {
-			println("dir: ", file.Name())
+			println("Directory: ", file.Name())
 			sub_dir := dir + file.Name()
 			osappend(&sub_dir)
 			PullUp(sub_dir)
-			// DeleteDir(sub_dir)
+			os.RemoveAll(sub_dir)
+			println("Deleted directory: ", sub_dir)
 		} else {
-			// Individual Files in sub-directories
-			for _, temp := range files {
-				println(temp.Name())
-			}
-			for _, sub_file := range files {
-				source_file := dir + sub_file.Name()
-				dest_file := root_dir + sub_file.Name()
-				if sub_file.IsDir() {
-					println("Sub file: ", sub_file.Name(), " is a dir")
-					osappend(&source_file)
-					PullUp(source_file)
-					DeleteDir(source_file)
-					continue
-				} else if CheckExtensions(sub_file, bad_exts[:]) {
-					os.Remove(source_file)
-					println("DELETED FILE: ", source_file)
-					continue
-				} else {
-					if source_file != dest_file {
-						err := MoveFile(source_file, dest_file)
-						if err != nil {
-							log.Fatal(err)
-						}
-					} else {
-						print("Source and dest are the same")
+			source_file := dir + file.Name()
+			if CheckExtensions(file, bad_exts[:]) {
+				os.Remove(source_file)
+				println("Deleted file: ", source_file)
+			} else {
+				dest_file := root_dir + file.Name()
+				if source_file != dest_file {
+					err := os.Rename(source_file, dest_file)
+					if err != nil {
+						log.Fatal(err)
 					}
-					continue
+					println(source_file, " --> ", dest_file)
+				} else {
+					println("File already at root", source_file)
 				}
 			}
 		}
@@ -131,8 +97,6 @@ func PullUp(dir string) {
 var root_dir string
 
 func main() {
-
-	// root_dir = ParseArgs(root_dir)
-	root_dir = `C:\Users\walter\Downloads\backup - Copy\`
+	root_dir = ParseArgs(root_dir)
 	PullUp(root_dir)
 }

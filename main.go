@@ -3,21 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
-)
 
-func CheckExtensions(file fs.DirEntry, extensions []string) bool {
-	for _, ext := range extensions {
-		if strings.Contains(file.Name(), ext) {
-			return true
-		}
-	}
-	return false
-}
+	"golang.org/x/exp/slices"
+)
 
 // Adds correct slash for path depending on OS
 func osappend(dir *string) {
@@ -64,7 +57,7 @@ func ParseArgs(path string) string {
 func PullUp(dir string) {
 	// Directory path is checked before run
 	files, _ := os.ReadDir(dir)
-	bad_exts := [4]string{".exe", ".jpg", ".nfo", ".txt"}
+	extensions := []string{".exe", ".jpg", ".nfo", ".png", ".txt"}
 	for _, file := range files {
 		if file.IsDir() {
 			println("Directory: ", file.Name())
@@ -75,7 +68,8 @@ func PullUp(dir string) {
 			println("Deleted directory: ", sub_dir)
 		} else {
 			source_file := dir + file.Name()
-			if CheckExtensions(file, bad_exts[:]) {
+			ext := filepath.Ext(file.Name())
+			if slices.Contains(extensions, ext) {
 				os.Remove(source_file)
 				println("Deleted file: ", source_file)
 			} else {
